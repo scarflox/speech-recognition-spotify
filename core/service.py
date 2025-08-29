@@ -21,12 +21,14 @@ def record_audio():
     try:
         print("\nStarting FFmpeg recording...")
         # Choose how to send the device to ffmpeg:
+
         # - If mic_name starts with @device use it directly (no quotes)
         # - Otherwise quote it to handle spaces and parentheses
+
         if str(mic_name).startswith('@device'):
             input_device = f'audio={mic_name}'
         else:
-            # IMPORTANT: include quotes around the friendly name for dshow
+            
             input_device = f'audio="{mic_name}"'
 
         # Build FFmpeg command
@@ -35,7 +37,6 @@ def record_audio():
             .input(input_device, f='dshow')
             .output(output_filename, acodec='flac', ar='16000', ac=1)
             .overwrite_output()
-            .global_args('-loglevel', 'debug')  # set to 'info' if too verbose
         )
 
         # Print command for debugging (exact args passed to ffmpeg)
@@ -177,5 +178,7 @@ def toggle_recording(whisper_model):
 
 
 def query_and_play_track(query):
-    track = sp.query_song_uri(query)
-    sp.play_track(track)
+    track_uri = sp.query_best_song(query)
+    if not track_uri:
+        print("No valid track found. Skipping playback...")
+    sp.play_track(track_uri)
