@@ -7,6 +7,8 @@ from core.utils import output_filename, ffmpeg_exe
 2. The handle_transcription() function will be called at the end of every recording.
 """
 
+latest_transcription = None
+
 def handle_transcription(whisper_model):
     # Ensure FFmpeg is in PATH
     os.environ["PATH"] = os.path.dirname(ffmpeg_exe) + os.pathsep
@@ -15,7 +17,10 @@ def handle_transcription(whisper_model):
     
     # Transcribe the audio file
     transcription = whisper_model.transcribe(output_filename)
-    print(transcription["text"])
+    latest_transcription = transcription["text"]
+    print(f"transcription: {latest_transcription}")
+    return latest_transcription
+
 
 
 def initiate_recognizer():

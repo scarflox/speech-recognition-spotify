@@ -5,12 +5,14 @@ import subprocess
 import re
 
 # ------------------- Paths -------------------
+
 output_folder = os.path.join(os.path.expanduser("~"), "Documents", "recordings")
 os.makedirs(output_folder, exist_ok=True)
 
 output_filename = os.path.join(output_folder, "user_audio.flac")
 
 # ------------------- FFmpeg executable -------------------
+
 ffmpeg_exe = r"C:\ffmpeg\bin\ffmpeg.exe"
 
 def get_alternative_mic_name(friendly_name):
@@ -43,6 +45,7 @@ def get_alternative_mic_name(friendly_name):
         return None
 
 # ------------------- Mic info -------------------
+
 default_device_index = sd.default.device[0]  # default input device index
 friendly_mic_name = sd.query_devices(default_device_index, kind='input')['name']  # type: ignore
 
@@ -57,5 +60,7 @@ print(f"Using microphone (friendly): {friendly_mic_name}")
 print(f"Using microphone (for ffmpeg): {mic_name}")
 
 # ------------------- State variables -------------------
+
 is_recording = False
 process = None
+

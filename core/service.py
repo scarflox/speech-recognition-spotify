@@ -5,7 +5,7 @@ import time
 import os
 from core.utils import output_filename, ffmpeg_exe, mic_name
 from core.recognizer import handle_transcription
-import subprocess
+import core.spotify_player as sp
 
 # ------------------- Global variables -------------------
 is_recording = False
@@ -43,7 +43,7 @@ def record_audio():
         # ffmpeg-python may produce args like ['-f', 'dshow', '-i', 'audio="Mic Name"', ...]
         print("FFmpeg command:", ' '.join(args))
 
-        # Start FFmpeg process
+        # Start FFmpeg processs
         process = stream.run_async(
             cmd=ffmpeg_exe,
             pipe_stdin=True,
@@ -92,9 +92,11 @@ def toggle_recording(whisper_model):
 
     if is_recording:
         print("\nStopping recording...")
+        time.sleep(1)
         is_recording = False
 
         if process:
+            time.sleep(0.5)
             try:
                 # 1) Try graceful stop: send 'q' to ffmpeg stdin and wait
                 if process.stdin:
@@ -107,7 +109,7 @@ def toggle_recording(whisper_model):
 
                 # Wait a short while for ffmpeg to finish normally
                 try:
-                    stdout, stderr = process.communicate(timeout=4)
+                    stdout, stderr = process.communicate(timeout=None)
                 except Exception:
                     # If it doesn't exit in time, fall back to terminate
                     print("FFmpeg didn't exit after 'q' — terminating.")
@@ -134,7 +136,7 @@ def toggle_recording(whisper_model):
                 try:
                     if stderr:
                         print("FFmpeg stderr (on stop):")
-                        print(stderr.decode(errors='ignore'))
+                        # print(stderr.decode(errors='ignore'))
                     else:
                         # try reading from process.stderr if still present
                         if process and process.stderr:
@@ -142,7 +144,7 @@ def toggle_recording(whisper_model):
                                 tail = process.stderr.read().decode(errors='ignore')
                                 if tail:
                                     print("FFmpeg stderr (tail):")
-                                    print(tail)
+                                    # print(tail)
                             except Exception:
                                 pass
                 except Exception:
@@ -155,13 +157,13 @@ def toggle_recording(whisper_model):
             recording_thread = None
 
         # small wait to let file system flush
-        time.sleep(0.5)
+        time.sleep(1.5)
 
         if os.path.exists(output_filename) and os.path.getsize(output_filename) > 0:
             print(f"Recording saved ({os.path.getsize(output_filename)} bytes)")
             try:
                 transcription = handle_transcription(whisper_model)
-                print(f"Transcription: {transcription['text']}")
+                query_and_play_track(transcription)
             except Exception as e:
                 print(f"Error during transcription: {str(e)}")
         else:
@@ -172,3 +174,8 @@ def toggle_recording(whisper_model):
         is_recording = True
         recording_thread = threading.Thread(target=record_audio, daemon=True)
         recording_thread.start()
+
+
+def query_and_play_track(query):
+    track = sp.query_song_uri(query)
+    sp.play_track(track)
