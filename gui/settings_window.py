@@ -1,0 +1,1 @@
+# GUI for hotkey, voice, possibly language.
