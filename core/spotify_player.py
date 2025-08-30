@@ -139,7 +139,7 @@ def play_track(uri: str, artist_uri: str | None = None):
         queue_recommendations(uri, artist_uri=artist_uri, max_results=20)
 
 
-def queue_recommendations(track_uri: str, artist_uri: str | None = None, max_results: int = 10):
+def queue_recommendations(track_uri, artist_uri = None, max_results = 30):
     """Queue recommended tracks using related artists and their top tracks."""
     track_id = track_uri.split(":")[-1] if ":" in track_uri else track_uri.split("/")[-1]
 
@@ -186,3 +186,11 @@ def queue_recommendations(track_uri: str, artist_uri: str | None = None, max_res
 
     print(f"Queued {len(recommended_tracks)} recommended tracks based on {track_info['name']}")
     return recommended_tracks
+
+
+def stop_current_playback():
+    try:
+        sp.pause_playback()
+        print("Playback paused successfully.")
+    except spotipy.exceptions.SpotifyException as e:
+        print(f"Error pausing playback: {e}")
