@@ -10,7 +10,7 @@ os.environ["PATH"] += ";" + ESPEAK_PATH
 
 def main():
     
-    af.initiate_tts(global_tts, text="Hello, I'm Q, your virtual assistant.")
+    af.initiate_tts(global_tts, text="Hello! I'm Q, your virtual assistant!")
     
     whisper_model = core.recognizer.initiate_recognizer()
 

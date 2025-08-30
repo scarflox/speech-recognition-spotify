@@ -1,18 +1,17 @@
 import os
 import sounddevice as sd
 import soundfile as sf
-import threading
-
+from core.utils import global_tts
 ESPEAK_PATH = r"F:\eSpeak\command-line"
 os.environ["PATH"] = ESPEAK_PATH + os.pathsep + os.environ.get("PATH", "")
 
-def initiate_tts(tts, text="Sorry! Haven't quite caught that.", speaker_id = "p347", file_path = "assets/sounds/temp.wav"):
+def initiate_tts(tts=global_tts, text="Sorry! Haven't quite caught that.", speaker_id = "p347", file_path = "assets/sounds/temp.wav"):
 
     try:
         # parameters for smoother speech
         length_scale = 1.5  # slightly slower speech
-        noise_scale = 0.6     # reduces robotic artifacts
-        noise_scale_w = 0.6   # affects prosody
+        noise_scale = 0.7   # reduces robotic artifacts
+        noise_scale_w = 0.8   # affects prosody
 
         tts.tts_to_file(
             text=text,

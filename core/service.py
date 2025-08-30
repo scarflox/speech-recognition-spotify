@@ -4,7 +4,6 @@ import time
 import threading
 import core.audio_feedback as af
 import os
-from core.utils import global_tts
 from core.utils import output_filename, ffmpeg_exe, mic_name
 from core.recognizer import handle_transcription
 import core.spotify_player as sp
@@ -94,6 +93,7 @@ def toggle_recording(whisper_model):
     global is_recording, recording_thread, process
 
     if is_recording:
+        af.initiate_tts(text="Let me look it up for you")
         print("\nStopping recording...")
         time.sleep(1)
         is_recording = False
@@ -174,7 +174,7 @@ def toggle_recording(whisper_model):
 
     else:
         print("\nStarting new recording...")
-        af.initiate_tts(global_tts, text="What song would you like to hear?")
+        af.initiate_tts(text="What song would you like to hear?")
         sp.stop_current_playback()
         is_recording = True
         recording_thread = threading.Thread(target=record_audio, daemon=True)
@@ -186,4 +186,5 @@ def query_and_play_track(query):
     if not chosen_uri:
         print("No valid track found. Skipping playback...")
         return
+    af.initiate_tts(text=f"Currently playing - {chosen_name} by {chosen_artist}")
     sp.play_track(chosen_uri, chosen["artists"][0]["uri"] if chosen else None)
