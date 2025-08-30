@@ -1,28 +1,39 @@
 # Unit tests for recognizer
-import os
 from TTS.api import TTS
 import sounddevice as sd
+import soundfile as sf
+import librosa
 
-# Make sure eSpeak-NG folder is in PATH
+# Initialize the TTS model (only needs to happen once)
+tts = TTS(model_name="tts_models/en/ljspeech/fast_pitch", progress_bar=True)
 
-# Load the TTS model
-tts = TTS(model_name="tts_models/en/vctk/vits")
+# The text you want to synthesize
+text = "Hello world! This is a test of the Tacotron 2 DDC TTS model."
 
-# List all available speakers for this model
-print("Available speakers:")
-for i, speaker in enumerate(tts.speakers):
-    print(f"{i}: {speaker}")
+# File path to save output
+file_path = "greeting.wav"
 
-# Let user pick a speaker
-while True:
-    choice = int(input("Enter the number of the speaker to test: "))
-    speaker_id = tts.speakers[choice]
+# Optional parameters to adjust voice
+length_scale = 0.85   # slow down speech (0.85x speed)
+noise_scale = 0.6     # reduce robotic artifacts
+noise_scale_w = 0.6   # affects prosody
 
-    # Generate sample speech
-    text = "Hello! This is a test of your chosen TTS voice."
-    wav = tts.tts(text, speaker=speaker_id)
+# Generate speech to file
+tts.tts_to_file(
+    text=text,
+    file_path=file_path,
+    length_scale=length_scale,
+    noise_scale=noise_scale,
+    noise_scale_w=noise_scale_w
+)
 
-    # Play the audio
-    print(f"Playing voice: {speaker_id}")
-    sd.play(wav, samplerate=tts.synthesizer.output_sample_rate)
-    sd.wait()
+# Load WAV file and resample to 44100Hz for playback
+wav, sr = sf.read(file_path)
+wav_44100 = librosa.resample(wav, orig_sr=sr, target_sr=44100)
+
+# Play the audio
+sd.play(wav_44100, samplerate=44100)
+sd.wait()
+
+print(f"TTS finished! File saved to {file_path}")
+

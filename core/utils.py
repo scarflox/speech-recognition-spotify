@@ -2,6 +2,7 @@
 import os
 import sounddevice as sd
 import subprocess
+from TTS.api import TTS
 import re
 
 # ------------------- Paths -------------------
@@ -14,6 +15,8 @@ output_filename = os.path.join(output_folder, "user_audio.flac")
 # ------------------- FFmpeg executable -------------------
 
 ffmpeg_exe = r"C:\ffmpeg\bin\ffmpeg.exe"
+
+global_tts = TTS(model_name="tts_models/en/vctk/vits", progress_bar=True)
 
 def get_alternative_mic_name(friendly_name):
     """

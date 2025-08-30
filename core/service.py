@@ -1,9 +1,10 @@
 # core/service.py
 import ffmpeg
-import threading
 import time
+import threading
+import core.audio_feedback as af
 import os
-import spotipy
+from core.utils import global_tts
 from core.utils import output_filename, ffmpeg_exe, mic_name
 from core.recognizer import handle_transcription
 import core.spotify_player as sp
@@ -173,6 +174,7 @@ def toggle_recording(whisper_model):
 
     else:
         print("\nStarting new recording...")
+        af.initiate_tts(global_tts, text="What song would you like to hear?")
         sp.stop_current_playback()
         is_recording = True
         recording_thread = threading.Thread(target=record_audio, daemon=True)

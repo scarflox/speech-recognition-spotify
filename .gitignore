@@ -5,3 +5,4 @@
 .env
 .cache
 .venv_backup
+.test_speech.py
