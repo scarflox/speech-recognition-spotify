@@ -182,4 +182,4 @@ def query_and_play_track(query):
     if not chosen_uri:
         print("No valid track found. Skipping playback...")
         return
-    sp.play_track(chosen_uri)
+    sp.play_track(chosen_uri, chosen["artists"][0]["uri"] if chosen else None)
