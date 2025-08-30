@@ -178,7 +178,8 @@ def toggle_recording(whisper_model):
 
 
 def query_and_play_track(query):
-    track_uri = sp.query_best_song(query)
-    if not track_uri:
+    chosen, chosen_name, chosen_artist, chosen_uri, chosen_score = sp.query_best_song(query)
+    if not chosen_uri:
         print("No valid track found. Skipping playback...")
-    sp.play_track(track_uri)
+        return
+    sp.play_track(chosen_uri)

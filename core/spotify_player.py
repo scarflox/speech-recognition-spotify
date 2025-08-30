@@ -21,7 +21,7 @@ sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
 ))
 
 
-def regular_query(query, return_details=False, max_tracks=500):
+def regular_query(query, max_tracks=200):
     tracks = []
     offset = 0
     limit = 50  # max allowed per Spotify search request
@@ -30,134 +30,133 @@ def regular_query(query, return_details=False, max_tracks=500):
         result = sp.search(q=query, type="track", limit=limit, offset=offset)
         items = result.get("tracks", {}).get("items", [])
         if not items:
-            break  # no more results
+            break
         tracks.extend(items)
         if len(items) < limit:
-            break  # last page
+            break
         offset += limit
 
     if not tracks:
         print(f"No track was found for '{query}' [NEED TTS]")
-        return (None, None, None) if return_details else None
+        return None, None, None, None, 0
 
-    # Pick the first track as “best match”
+    # Pick the first track as best match
     track = tracks[0]
-    print(track["name"], "-", track["artists"][0]["name"])
+    track_name_final = track["name"]
+    artist_name_final = ", ".join([a["name"] for a in track["artists"]])
+    uri = track["uri"]
+    score = 100  # assume 100% confidence for first search result
+
+    print(f"{track_name_final} - {artist_name_final}")
     print("Regular Search Spotify URL:", track["external_urls"]["spotify"])
-    print("Regular Search URI:", track["uri"])
-    if return_details:
-        return track["uri"], track["name"], track["artists"][0]["name"]
-    return track["uri"]
+    print("Regular Search URI:", uri)
+
+    return track, track_name_final, artist_name_final, uri, score
 
 
-def query_song_uri(query, return_details=False, max_tracks=500):
-    """
-    Find best match for a query using an artist-specific search.
-    Fetches up to `max_tracks` from the artist instead of just top tracks.
-    """
 
+def new_query(query, max_tracks=200, artist_threshold=40):
+    tracks = []
+    offset = 0
+    limit = 50  # Spotify max per request
+
+    # -----------------------
+    # Parse transcription
+    # -----------------------
     if " by " in query.lower():
         parts = query.lower().split(" by ")
         track_name = parts[0].strip()
         artist_name = parts[1].strip()
-
-        # Search for artist
-        artist_query = sp.search(q=f'artist:"{artist_name}"', type="artist", limit=1)
-        if not artist_query or not artist_query["artists"]["items"]:
-            print(f"No artist found for '{artist_name}', falling back to regular query.")
-            return regular_query(query, return_details=return_details)
-
-        artist_id = artist_query["artists"]["items"][0]["id"]
-
-        # Fetch artist albums and singles (paginated)
-        albums = []
-        offset = 0
-        while len(albums) < max_tracks:
-            batch = sp.artist_albums(
-                artist_id,
-                album_type='album,single,compilation',
-                limit=50,
-                offset=offset
-            )["items"]
-            if not batch:
-                break
-            albums.extend(batch)
-            if len(batch) < 50:
-                break
-            offset += 50
-
-        # Collect tracks from albums
-        artist_tracks = []
-        for album in albums:
-            album_tracks = sp.album_tracks(album['id'])['items']
-            for t in album_tracks:
-                artist_tracks.append(t)
-                if len(artist_tracks) >= max_tracks:
-                    break
-            if len(artist_tracks) >= max_tracks:
-                break
-
-        if not artist_tracks:
-            print(f"No tracks found for artist '{artist_name}', falling back to regular query.")
-            return regular_query(query, return_details=return_details)
-
-        # Fuzzy match the transcription to track names
-        track_names = [t["name"] for t in artist_tracks]
-        result = process.extractOne(track_name, track_names, scorer=fuzz.token_sort_ratio)
-
-        if result is None:
-            print("No matching track found in artist tracks, falling back to global search.")
-            return regular_query(query, return_details=return_details)
-
-        best_match, score, _ = result
-        matched_track = next((t for t in artist_tracks if t["name"].lower() == best_match.lower()), None)
-
-        if not matched_track:
-            print("Could not resolve fuzzy match to a track object, falling back to global search.")
-            return regular_query(query, return_details=return_details)
-
-        print(f"Matched track: {matched_track['name']} - {matched_track['artists'][0]['name']}")
-        print("Artist query Spotify URL:", matched_track["external_urls"]["spotify"])
-        print("Artist query URI:", matched_track["uri"])
-
-        if return_details:
-            return matched_track["uri"], matched_track["name"], matched_track["artists"][0]["name"]
-        return matched_track["uri"]
-
     else:
-        # No artist specified → fallback to regular query
-        print("No artist specified in query, running regular search.")
-        return regular_query(query, return_details=return_details)
+        track_name = query.lower().strip()
+        artist_name = None
 
+    # -----------------------
+    # Fetch tracks via pagination
+    # -----------------------
+    while len(tracks) < max_tracks:
+        result = sp.search(q=track_name, type="track", limit=limit, offset=offset)
+        items = result.get("tracks", {}).get("items", [])
+        if not items:
+            break
+        tracks.extend(items)
+        if len(items) < limit:
+            break
+        offset += limit
 
-def query_best_song(query):
-    print("Running regular query")
-    regular_uri, regular_name, regular_artist = regular_query(query, return_details=True)
+    if not tracks:
+        print(f"No track found for '{query}' [NEED TTS]")
+        return None, None, None, None, 0
 
-    print("Running fuzzy artist-top-tracks query...")
-    fuzzy_uri, fuzzy_name, fuzzy_artist = query_song_uri(query, return_details=True)
+    # -----------------------
+    # Compute weighted fuzzy scores with artist threshold
+    # -----------------------
+    best_match = None
+    best_score = 0
 
-    if not regular_uri and not fuzzy_uri:
-        print("No track was found in any query. [DEBUG]")
-        return None
-    
-    if regular_uri and not fuzzy_uri:
-        return regular_uri
-    if fuzzy_uri and not regular_uri:
-        return fuzzy_uri
-    
-    # In case both queries exist, we must find the best result compared to our transcription.
+    for track in tracks:
+        title_score = fuzz.token_set_ratio(track_name.lower(), track["name"].lower())
+        artist_score = 0
 
-    regular_score = fuzz.token_sort_ratio(query.lower(), f"{regular_name} {regular_artist}".lower())
-    fuzzy_score = fuzz.token_sort_ratio(query.lower(), f"{fuzzy_name} {fuzzy_artist}".lower())
+        if artist_name:
+            artist_scores = [
+                fuzz.token_set_ratio(artist_name.lower(), a["name"].lower())
+                for a in track["artists"]
+            ]
+            artist_score = max(artist_scores)
+            
+            # Skip tracks with artist too dissimilar
+            if artist_score < artist_threshold:
+                continue
+ 
+        combined_score = 0.7 * artist_score + 0.3 * title_score
+        if combined_score > best_score:
+            best_score = combined_score
+            best_match = track
 
-    print(f"Similarity scores: Regular - {regular_score}, Fuzzy - {fuzzy_score}")
-    if fuzzy_score >= regular_score:
-        print(f"Chosen track (regular): {fuzzy_name} - {fuzzy_artist}")
-        return fuzzy_uri
-    else:
-        print(f"Chosen track (regular): {regular_name} - {regular_artist}")
-        return regular_uri
+    # -----------------------
+    # Fallback search if nothing passes threshold
+    # -----------------------
+    if not best_match:
+        fallback = sp.search(q=query.lower(), type="track", limit=10)
+        fallback_items = fallback.get("tracks", {}).get("items", [])
+        fallback_best = None
+        fallback_score = 0
+
+        for track in fallback_items:
+            title_score = fuzz.token_set_ratio(track_name.lower(), track["name"].lower())
+            artist_score = 0
+
+            if artist_name:
+                artist_scores = [
+                    fuzz.token_set_ratio(artist_name.lower(), a["name"].lower())
+                    for a in track["artists"]
+                ]
+                artist_score = max(artist_scores)
+                if artist_score < artist_threshold:
+                    continue
+
+            combined_score = 0.7 * artist_score + 0.3 * title_score
+            if combined_score > fallback_score:
+                fallback_score = combined_score
+                fallback_best = track
+
+        best_match = fallback_best
+        best_score = fallback_score
+
+    # -----------------------
+    # Return result
+    # -----------------------
+    if not best_match:
+        return None, None, None, None, 0
+
+    track_name_final = best_match["name"]
+    artist_name_final = ", ".join([a["name"] for a in best_match["artists"]])
+    uri = best_match["uri"]
+
+    print(f"Matched track: {track_name_final} - {artist_name_final} | Score: {best_score}%")
+    print("Spotify URL:", best_match["external_urls"]["spotify"])
+    return best_match, track_name_final, artist_name_final, uri, best_score
 
 
 def play_track(uri): # Play track via URI
@@ -172,3 +171,65 @@ def play_track(uri): # Play track via URI
     device_id = devices["devices"][0]["id"]
     sp.start_playback(device_id=device_id, uris=[uri])
 
+
+def query_best_song(query, max_tracks=500, confidence_threshold=50):
+    """
+    Hybrid Spotify track selection:
+    1. Run new_query (artist-aware + fuzzy matching)
+    2. Run regular_query (full search fallback)
+    3. Pick the track with the best title match to the transcription,
+       breaking ties with artist similarity.
+    """
+
+    print("Running new_query...")
+    new_result = new_query(query, max_tracks=max_tracks)
+    new_track, new_name, new_artist, new_uri, new_score = new_result
+
+    print("Running global query...")
+    reg_result = regular_query(query, max_tracks=max_tracks)
+    if reg_result:
+        reg_track, reg_name, reg_artist, reg_uri, reg_score = reg_result
+    else:
+        reg_track, reg_name, reg_artist, reg_uri, reg_score = None, None, None, None, 0
+
+    # Compute title similarity to transcription for both
+    transcription_lower = query.lower()
+    new_title_score = fuzz.token_set_ratio(transcription_lower, new_name.lower()) if new_name else 0
+    reg_title_score = fuzz.token_set_ratio(transcription_lower, reg_name.lower()) if reg_name else 0
+
+    # Compute artist similarity
+    new_artist_score = fuzz.token_set_ratio(query.lower(), f"{new_name} {new_artist}".lower()) if new_artist else 0
+    reg_artist_score = fuzz.token_set_ratio(query.lower(), f"{reg_name} {reg_artist}".lower()) if reg_artist else 0
+
+    # Decide which track to pick:
+    # 1. Prefer exact or closest title match
+    # 2. Use artist score as tie-breaker
+    if new_title_score > reg_title_score:
+        chosen = new_track
+        chosen_name = new_name
+        chosen_artist = new_artist
+        chosen_uri = new_uri
+        chosen_score = new_title_score
+    elif reg_title_score > new_title_score:
+        chosen = reg_track
+        chosen_name = reg_name
+        chosen_artist = reg_artist
+        chosen_uri = reg_uri
+        chosen_score = reg_title_score
+    else:
+        # titles equal → pick higher combined fuzzy score
+        if new_score >= reg_score:
+            chosen = new_track
+            chosen_name = new_name
+            chosen_artist = new_artist
+            chosen_uri = new_uri
+            chosen_score = new_score
+        else:
+            chosen = reg_track
+            chosen_name = reg_name
+            chosen_artist = reg_artist
+            chosen_uri = reg_uri
+            chosen_score = reg_score
+
+    print(f"Chosen track: {chosen_name} - {chosen_artist} | Title match score: {chosen_score}")
+    return chosen, chosen_name, chosen_artist, chosen_uri, chosen_score
